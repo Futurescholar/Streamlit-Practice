@@ -1,24 +1,33 @@
-import streamlit as st
+import time
+import requests
+from bs4 import BeautifulSoup
+from urllib.parse import urljoin
+import pandas as pd
 
-# Exchange rates dictionary
-rates = {'a': 1500, 'b': 2000, 'c': 5500}
+base_url = 'http://quotes.toscrape.com/'
+url = base_url
+all_quotes = []
 
-st.set_page_config(page_title="Advanced Currency Converter", page_icon="💱", layout="centered")
-st.title("💱 Advanced Currency Converter")
+while True:
+    page = requests.get(url)
+    soup = BeautifulSoup(page.text, 'html.parser')
+    quotes = soup.find_all('div', class_='quote')
 
-# Sidebar inputs for a clean UI
-st.sidebar.header("Converter Settings")
-currency = st.sidebar.selectbox("Choose currency type:", options=list(rates.keys()), format_func=lambda x: f"Currency {x.upper()}")
-amount = st.sidebar.number_input("Enter amount to convert:", min_value=0, step=1, format="%d")
+    for q in quotes:
+        text = q.find('span', class_='text').text.strip()
+        author = q.find('small', class_='author').text.strip()
+        all_quotes.append({'quote': text, 'author': author})
 
-# Button to trigger conversion
-if st.sidebar.button("Convert"):
-    if amount <= 0:
-        st.error("Please enter an amount greater than zero.")
+    next_button = soup.find('li', class_='next')
+    if next_button:
+        next_page = next_button.a['href']
+        url = urljoin(url, next_page)
     else:
-        result = amount * rates[currency]
-        st.success(f"💰 {amount} units of Currency {currency.upper()} = {result:,} Naira")
+        break
 
-# Optional: Show exchange rates table
-with st.expander("See all exchange rates"):
-    st.table({f"Currency {k.upper()}": [v] for k, v in rates.items()})
+    time.sleep(1)
+
+# Save to CSV
+df = pd.DataFrame(all_quotes)
+df.to_csv('quotes.csv', index=False)
+print("Quotes saved to quotes.csv")
